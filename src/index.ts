@@ -14,6 +14,47 @@ import { AutocompStatus } from './status';
 const INLINE_COMPLETER_PLUGIN =
   '@jupyterlab/completer-extension:inline-completer';
 const TOGGLE_COMMAND = 'jupyter-autocomp:toggle';
+const INVOKE_INLINE = 'inline-completer:invoke';
+
+/**
+ * JupyterLab skips automatic inline completion when only whitespace precedes
+ * the cursor, which is always the case right after Enter. For those lines we
+ * request a suggestion explicitly.
+ */
+function installNewLineTrigger(
+  app: JupyterFrontEnd,
+  provider: LLMInlineProvider
+): void {
+  let timer: number | undefined;
+  document.addEventListener(
+    'keyup',
+    (ev: KeyboardEvent) => {
+      const s = provider.settings;
+      if (
+        ev.key !== 'Enter' ||
+        ev.shiftKey ||
+        ev.ctrlKey ||
+        ev.altKey ||
+        ev.metaKey ||
+        !s.enabled ||
+        !s.triggerOnNewLine
+      ) {
+        return;
+      }
+      const target = ev.target as HTMLElement | null;
+      if (!target?.closest('.cm-editor')) {
+        return;
+      }
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (app.commands.hasCommand(INVOKE_INLINE)) {
+          void app.commands.execute(INVOKE_INLINE);
+        }
+      }, s.debouncerDelay);
+    },
+    true
+  );
+}
 
 /**
  * Registers an inline (ghost-text) completion provider backed by a local or
@@ -68,6 +109,8 @@ const plugin: JupyterFrontEndPlugin<void> = {
         autoClose: 8000
       });
     });
+
+    installNewLineTrigger(app, provider);
 
     if (statusBar) {
       const item = new AutocompStatus(provider, app.commands, TOGGLE_COMMAND);

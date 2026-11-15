@@ -87,3 +87,49 @@ def test_stop_list():
     req = backends.CompletionRequest(prefix="", multiline=False)
     s = req.stops(("<EOT>",))
     assert s[-1] == "\n" and "<EOT>" in s and len(s) == len(set(s))
+
+
+# --- streaming endpoint -------------------------------------------------------
+
+def _events(body: bytes) -> list[dict]:
+    return [json.loads(l[5:]) for l in body.decode().split("\n") if l.startswith("data:")]
+
+
+async def test_stream(jp_fetch, monkeypatch):
+    monkeypatch.setitem(backends.BACKENDS, "infill", _fake_infill)
+    r = await jp_fetch("jupyter-autocomp", "stream", method="POST",
+                       body=json.dumps({"prefix": "m = ", "model": "fake"}))
+    assert r.code == 200
+    assert r.headers["Content-Type"].startswith("text/event-stream")
+    ev = _events(r.body)
+    assert [e["text"] for e in ev if "text" in e] == ["np.", "mean", "(x)"]
+    assert ev[-1]["done"] is True and ev[-1]["model"] == "fake"
+
+
+async def test_stream_error_event(jp_fetch, monkeypatch):
+    monkeypatch.setitem(backends.BACKENDS, "infill", _broken)
+    r = await jp_fetch("jupyter-autocomp", "stream", method="POST",
+                       body=json.dumps({"prefix": "x"}))
+    ev = _events(r.body)
+    assert ev == [{"error": "BackendError: upstream down"}]
+
+
+async def test_ollama_backend_ndjson(monkeypatch):
+    """stream_ollama sends a raw FIM prompt and parses NDJSON."""
+    import httpx
+    seen = {}
+
+    def handler(request: httpx.Request):
+        seen["url"] = str(request.url)
+        seen["body"] = json.loads(request.content)
+        lines = [{"response": "np."}, {"response": "mean(x)"}, {"response": "", "done": True}]
+        return httpx.Response(200, text="\n".join(json.dumps(l) for l in lines))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        req = backends.CompletionRequest(prefix="m = ", suffix="\n", backend="ollama",
+                                         base_url="http://o:11434/v1", model="qwen2.5-coder:7b")
+        out = "".join([x async for x in backends.stream_ollama(req, c)])
+    assert out == "np.mean(x)"
+    assert seen["url"] == "http://o:11434/api/generate"
+    assert seen["body"]["raw"] is True
+    assert seen["body"]["prompt"] == "<|fim_prefix|>m = <|fim_suffix|>\n<|fim_middle|>"

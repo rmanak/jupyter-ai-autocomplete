@@ -17,12 +17,11 @@ import {
   ICellLike,
   shouldCompleteMultiline
 } from './context';
-import { postprocessCompletion } from './filters';
-import { requestAPI } from './request';
+import { StreamSession } from './streaming';
 
 export const PROVIDER_ID = 'jupyter-autocomp';
 
-export type Backend = 'infill' | 'completions' | 'chat';
+export type Backend = 'infill' | 'completions' | 'ollama' | 'chat';
 
 export interface IAutocompSettings {
   enabled: boolean;
@@ -37,6 +36,8 @@ export interface IAutocompSettings {
   maxPrefixChars: number;
   maxSuffixChars: number;
   includeMarkdown: boolean;
+  triggerOnNewLine: boolean;
+  debouncerDelay: number;
 }
 
 export const DEFAULT_SETTINGS: IAutocompSettings = {
@@ -51,7 +52,9 @@ export const DEFAULT_SETTINGS: IAutocompSettings = {
   multiline: 'auto',
   maxPrefixChars: DEFAULT_CONTEXT_OPTIONS.maxPrefixChars,
   maxSuffixChars: DEFAULT_CONTEXT_OPTIONS.maxSuffixChars,
-  includeMarkdown: true
+  includeMarkdown: true,
+  triggerOnNewLine: true,
+  debouncerDelay: 250
 };
 
 export type StatusState = 'idle' | 'loading' | 'error' | 'disabled';
@@ -60,7 +63,7 @@ export interface IStatus {
   state: StatusState;
   /** Error text when state is 'error'. */
   message?: string;
-  /** Round-trip time of the last successful request, in ms. */
+  /** Time to the first visible text of the last request, in ms. */
   lastMs?: number;
   backend: Backend;
   model: string;
@@ -93,7 +96,6 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
 
   readonly schema: ISettingRegistry.IProperty = {
     default: {
-      debouncerDelay: 250,
       timeout: 10000,
       autoFillInMiddle: true,
       ...DEFAULT_SETTINGS
@@ -102,9 +104,9 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
       backend: {
         title: 'Backend',
         description:
-          'infill = llama.cpp native /infill (best for llama.cpp). completions = OpenAI /v1/completions with a FIM prompt (vLLM, Ollama, LM Studio, llama.cpp). chat = /v1/chat/completions fill-the-hole prompt, for chat-only models (slower).',
+          'infill = llama.cpp native /infill (best for llama.cpp). completions = OpenAI /v1/completions with a FIM prompt (vLLM, LM Studio, llama.cpp). ollama = Ollama /api/generate raw FIM (use base URL http://localhost:11434). chat = /v1/chat/completions fill-the-hole prompt, for chat-only models (slower).',
         type: 'string',
-        enum: ['infill', 'completions', 'chat']
+        enum: ['infill', 'completions', 'ollama', 'chat']
       },
       baseUrl: {
         title: 'Base URL',
@@ -119,7 +121,7 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
         type: 'string'
       },
       template: {
-        title: 'FIM template (completions backend)',
+        title: 'FIM template (completions/ollama backends)',
         description:
           'auto = pick from the model name. Otherwise force a format.',
         type: 'string',
@@ -165,13 +167,18 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
       includeMarkdown: {
         title: 'Include markdown cells as comments',
         type: 'boolean'
+      },
+      triggerOnNewLine: {
+        title: 'Suggest on new lines',
+        description:
+          'JupyterLab does not auto-trigger when only whitespace precedes the cursor (e.g. right after Enter). When on, pressing Enter requests a suggestion explicitly, like Continue/Copilot do.',
+        type: 'boolean'
       }
     }
   };
 
   private _settings: IAutocompSettings = { ...DEFAULT_SETTINGS };
   private _cache = new CompletionCache();
-  private _inflight: AbortController | null = null;
   private _lastError = '';
   private _status: IStatus = {
     state: 'idle',
@@ -255,71 +262,125 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
       return { items: [{ insertText: cached }] };
     }
 
-    // Abort the previous request: the user kept typing, so it's stale. The server
-    // then cancels the upstream generation too.
-    this._inflight?.abort();
-    const ac = new AbortController();
-    this._inflight = ac;
-    this._setStatus({ state: 'loading' });
+    // Type-through: the user is typing exactly what the running stream predicted,
+    // so keep reading it instead of starting over (Continue's GeneratorReuseManager).
+    const prev = this._session;
+    if (
+      prev &&
+      !prev.cancelled &&
+      !prev.done &&
+      prev.multiline === multiline &&
+      prev.suffix === ctx.suffix &&
+      ctx.prefix.startsWith(prev.prefix)
+    ) {
+      const typed = ctx.prefix.slice(prev.prefix.length);
+      if (prev.text.startsWith(typed) && prev.text.length > typed.length) {
+        return this._item(prev, typed.length);
+      }
+    }
 
+    // Supersede the previous request: aborting it closes the server stream, and
+    // the server then cancels the upstream generation.
+    prev?.abort();
+    const session = new StreamSession(ctx.prefix, ctx.suffix, multiline, sess =>
+      this._onSessionFinished(sess)
+    );
+    this._session = session;
+    this._setStatus({ state: 'loading' });
+    session.start(this._serverSettings, {
+      backend: s.backend,
+      base_url: s.baseUrl,
+      model: s.model,
+      template: s.template,
+      prefix: ctx.prefix,
+      suffix: ctx.suffix,
+      multiline,
+      max_tokens: multiline ? s.maxTokens : s.maxTokensSingleLine,
+      temperature: s.temperature
+    });
+
+    // Return as soon as there's something to show; stream() delivers the rest.
+    while (!session.done && !session.text) {
+      await session.changed();
+    }
+    if (!session.text) {
+      return { items: [] };
+    }
+    return this._item(session, 0);
+  }
+
+  /**
+   * Called by JupyterLab for items with isIncomplete=true. Yields the full
+   * (cumulative) insertText each time the session gets new text.
+   */
+  async *stream(
+    token: string
+  ): AsyncGenerator<{ response: IInlineCompletionItem }, undefined, unknown> {
+    const entry = this._streams.get(token);
+    if (!entry) {
+      return;
+    }
+    const { session, skip } = entry;
     try {
-      const res = await requestAPI<{
-        completion: string;
-        ms: number;
-        model?: string;
-      }>('complete', this._serverSettings, {
-        method: 'POST',
-        signal: ac.signal,
-        body: JSON.stringify({
-          backend: s.backend,
-          base_url: s.baseUrl,
-          model: s.model,
-          template: s.template,
-          prefix: ctx.prefix,
-          suffix: ctx.suffix,
-          multiline,
-          max_tokens: multiline ? s.maxTokens : s.maxTokensSingleLine,
-          temperature: s.temperature
-        })
-      });
-      if (ac.signal.aborted) {
-        return { items: [] };
+      let last = session.text.slice(skip);
+      while (!session.done) {
+        await session.changed();
+        const text = session.text.slice(skip);
+        if (text !== last) {
+          last = text;
+          yield { response: { insertText: text, isIncomplete: !session.done } };
+        }
       }
-      this._lastError = '';
-      this._setStatus({
-        state: 'idle',
-        message: undefined,
-        lastMs: res.ms,
-        model: res.model || s.model
-      });
-      const completion = postprocessCompletion({
-        completion: res.completion,
-        prefix: ctx.prefix,
-        suffix: ctx.suffix,
-        multiline
-      });
-      if (!completion) {
-        return { items: [] };
-      }
-      this._cache.put(ctx.prefix, ctx.suffix, completion);
-      return { items: [{ insertText: completion }] };
-    } catch (e: any) {
-      if (ac.signal.aborted || e?.name === 'AbortError') {
-        // A newer request owns the status now; leave it alone.
-        return { items: [] };
-      }
-      const msg = String(e?.message ?? e);
+      yield { response: { insertText: last, isIncomplete: false } };
+    } finally {
+      this._streams.delete(token);
+    }
+  }
+
+  private _item(
+    session: StreamSession,
+    skip: number
+  ): IInlineCompletionList<IInlineCompletionItem> {
+    const insertText = session.text.slice(skip);
+    if (session.done) {
+      return { items: [{ insertText }] };
+    }
+    const token = `jupyter-autocomp-${++this._tokenCounter}`;
+    this._streams.set(token, { session, skip });
+    return { items: [{ insertText, isIncomplete: true, token }] };
+  }
+
+  private _onSessionFinished(session: StreamSession): void {
+    if (session.cancelled) {
+      return; // superseded; the newer session owns the status
+    }
+    if (session.error) {
+      const msg = session.error;
       this._setStatus({ state: 'error', message: msg });
       if (msg !== this._lastError) {
         this._lastError = msg;
         console.warn('[jupyter_autocomp] completion failed:', msg);
         this._errorOccurred.emit(msg);
       }
-      return { items: [] };
-    } finally {
-      if (this._inflight === ac) {
-        this._inflight = null;
-      }
+      return;
+    }
+    this._lastError = '';
+    this._setStatus({
+      state: 'idle',
+      message: undefined,
+      lastMs: session.firstMs ?? session.totalMs,
+      model: session.model || this._settings.model
+    });
+    const text = session.text;
+    if (text) {
+      this._cache.put(session.prefix, session.suffix, text);
     }
   }
+
+  private _session: StreamSession | null = null;
+  private _streams = new Map<
+    string,
+    { session: StreamSession; skip: number }
+  >();
+  private _tokenCounter = 0;
 }

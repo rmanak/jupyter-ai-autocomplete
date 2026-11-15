@@ -10,6 +10,10 @@ Backends:
   infill       llama.cpp native ``/infill``. The server applies the model's FIM tokens.
   completions  OpenAI ``/v1/completions`` with a raw FIM prompt (llama.cpp, vLLM,
                Ollama, LM Studio, TGI...). The template is picked from the model name.
+  ollama       Ollama native ``/api/generate`` with ``raw: true`` and a FIM prompt.
+               Ollama's ``/v1/completions`` puts the prompt through the model's chat
+               renderer (you get "```python" back), and ``suffix`` is rejected for
+               many models, so raw mode is the only reliable FIM path.
   chat         OpenAI ``/v1/chat/completions`` with a fill-the-hole prompt, for
                chat-only models. Slower and less precise; use it as a fallback.
 """
@@ -197,6 +201,42 @@ async def stream_completions(req: CompletionRequest, client: httpx.AsyncClient) 
                     yield chunk
 
 
+async def stream_ollama(req: CompletionRequest, client: httpx.AsyncClient) -> AsyncIterator[str]:
+    model = await resolve_model(req, client)
+    try:
+        tpl = templates.resolve_template(req.template, model)
+    except ValueError as e:
+        raise BackendError(str(e))
+    body = {
+        "model": model,
+        "prompt": tpl.render(req.prefix, req.suffix),
+        "raw": True,  # bypass the chat template/renderer
+        "stream": True,
+        "options": {
+            "temperature": req.temperature,
+            "top_p": 0.95,
+            "num_predict": req.max_tokens,
+            "stop": req.stops(tpl.stop),
+        },
+    }
+    async with client.stream("POST", _root(req.base_url) + "/api/generate", json=body,
+                             headers=_headers()) as resp:
+        await _check(resp, "/api/generate")
+        async for line in resp.aiter_lines():  # NDJSON
+            if not line.strip():
+                continue
+            try:
+                ev = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if ev.get("error"):
+                raise BackendError(f"ollama: {ev['error']}")
+            if ev.get("response"):
+                yield ev["response"]
+            if ev.get("done"):
+                return
+
+
 async def stream_chat(req: CompletionRequest, client: httpx.AsyncClient) -> AsyncIterator[str]:
     """Chat fallback. It buffers the response because the answer is wrapped in tags."""
     model = await resolve_model(req, client)
@@ -237,6 +277,7 @@ async def stream_chat(req: CompletionRequest, client: httpx.AsyncClient) -> Asyn
 BACKENDS = {
     "infill": stream_infill,
     "completions": stream_completions,
+    "ollama": stream_ollama,
     "chat": stream_chat,
 }
 

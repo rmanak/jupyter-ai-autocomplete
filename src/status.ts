@@ -62,7 +62,7 @@ export class AutocompStatus extends Widget {
       `backend: ${st.backend}` + (st.model ? ` · model: ${st.model}` : '')
     );
     if (st.lastMs !== undefined && st.state !== 'error') {
-      parts.push(`last request: ${Math.round(st.lastMs)} ms`);
+      parts.push(`first token: ${Math.round(st.lastMs)} ms`);
     }
     if (st.state === 'error' && st.message) {
       parts.push(`error: ${st.message}`);

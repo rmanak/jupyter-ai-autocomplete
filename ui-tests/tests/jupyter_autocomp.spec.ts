@@ -1,11 +1,28 @@
 import { expect, galata, test } from '@jupyterlab/galata';
 
 /**
- * End-to-end test: typing in a notebook cell shows LLM ghost text and Tab
- * accepts it. Needs a live FIM-capable LLM at $JUPYTER_AUTOCOMP_BASE_URL
- * (default http://localhost:8080).
+ * End-to-end tests against a live FIM-capable LLM.
+ * Defaults to llama.cpp on :8080; for Ollama run with
+ *   AUTOCOMP_BACKEND=ollama AUTOCOMP_BASE_URL=http://localhost:11434 npx playwright test
  */
-test.use({ autoGoto: false });
+const BACKEND = process.env.AUTOCOMP_BACKEND ?? 'infill';
+const BASE: Record<string, any> = {
+  backend: BACKEND,
+  baseUrl: process.env.AUTOCOMP_BASE_URL ?? ''
+};
+const INLINE = '@jupyterlab/completer-extension:inline-completer';
+
+/** Galata keeps settings in memory per test; seed our provider's settings. */
+function withProvider(settings: Record<string, any>) {
+  return {
+    mockSettings: {
+      ...galata.DEFAULT_SETTINGS,
+      [INLINE]: { providers: { 'jupyter-autocomp': { ...BASE, ...settings } } }
+    }
+  };
+}
+
+test.use({ autoGoto: false, ...withProvider({}) });
 
 test('registers the provider', async ({ page }) => {
   const logs: string[] = [];
@@ -40,18 +57,6 @@ test('ghost text appears and Tab accepts it', async ({ page }) => {
   expect(src).toContain('mean_x = ' + suggestion.split('\n')[0]);
   console.log('accepted suggestion:', JSON.stringify(suggestion));
 });
-
-const INLINE = '@jupyterlab/completer-extension:inline-completer';
-
-/** Galata keeps settings in memory per test; seed our provider's settings. */
-function withProvider(settings: Record<string, any>) {
-  return {
-    mockSettings: {
-      ...galata.DEFAULT_SETTINGS,
-      [INLINE]: { providers: { 'jupyter-autocomp': settings } }
-    }
-  };
-}
 
 async function typeInNewNotebook(page: any, name: string) {
   await page.notebook.createNew(name);
@@ -99,6 +104,10 @@ test.describe('unreachable server', () => {
 });
 
 test.describe('completions backend', () => {
+  test.skip(
+    BACKEND !== 'infill',
+    'needs llama.cpp (Ollama /v1/completions applies a chat template)'
+  );
   test.use(withProvider({ backend: 'completions' }));
   test('/v1/completions + FIM template gives ghost text', async ({ page }) => {
     await page.goto();
@@ -112,6 +121,37 @@ test.describe('completions backend', () => {
     expect(title).toContain('backend: completions');
     expect(title).toContain('model: qwen3-coder');
   });
+});
+
+test('streams a multi-line suggestion and accepts all of it', async ({
+  page
+}) => {
+  await page.goto();
+  await page.notebook.createNew('stream.ipynb');
+  await page.notebook.setCell(0, 'code', 'import numpy as np');
+  await page.notebook.addCell(
+    'markdown',
+    'Define `normalize(v)` that returns v scaled to unit L2 norm'
+  );
+  await page.notebook.addCell('code', '');
+  await focusLastCellEnd(page);
+  await page.keyboard.type('def normalize(v):\n', { delay: 20 });
+  const ghost = page.locator('.jp-GhostText');
+  await expect(ghost).toBeVisible({ timeout: 15000 });
+  // Wait until streaming finishes (the streaming indicator disappears).
+  await expect(page.locator('.jp-GhostText-streamingIndicator')).toHaveCount(
+    0,
+    {
+      timeout: 15000
+    }
+  );
+  const suggestion = await ghost.innerText();
+  expect(suggestion).toContain('return');
+  await page.keyboard.press('Tab');
+  const src = await page.notebook.getCellTextInput(2);
+  expect(src).toContain('def normalize(v):');
+  expect(src).toContain('return');
+  console.log('streamed suggestion:', JSON.stringify(suggestion));
 });
 
 test.describe('chat backend', () => {

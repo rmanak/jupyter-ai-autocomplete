@@ -1,9 +1,11 @@
 import asyncio
+import contextlib
 import json
 import time
 
 import httpx
 import tornado
+from tornado.iostream import StreamClosedError
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 
@@ -64,6 +66,56 @@ class CompleteHandler(APIHandler):
         }))
 
 
+class StreamHandler(APIHandler):
+    """POST /jupyter-autocomp/stream -> Server-Sent Events.
+
+    Events: ``{"text": chunk}`` while generating, then one of
+    ``{"done": true, "model": ..., "ms": ...}`` or ``{"error": message}``.
+    If the browser disconnects, the task is cancelled and the upstream LLM
+    stream is closed.
+    """
+
+    _task: asyncio.Task | None = None
+
+    def on_connection_close(self):
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+
+    async def _send(self, payload: dict) -> None:
+        self.write(f"data: {json.dumps(payload)}\n\n")
+        await self.flush()
+
+    async def _pump(self, req: CompletionRequest) -> None:
+        t0 = time.perf_counter()
+        try:
+            gen = backends.get_backend(req.backend)(req, client())
+            async with contextlib.aclosing(gen):
+                async for chunk in gen:
+                    await self._send({"text": chunk})
+            await self._send({"done": True, "model": req.model,
+                              "ms": round((time.perf_counter() - t0) * 1000, 1)})
+        except (BackendError, httpx.HTTPError) as e:
+            self.log.warning("jupyter_autocomp backend error: %s", e)
+            await self._send({"error": f"{type(e).__name__}: {e}"})
+
+    @tornado.web.authenticated
+    async def post(self):
+        try:
+            req = CompletionRequest.from_json(self.get_json_body() or {})
+        except TypeError as e:
+            self.set_status(400)
+            return self.finish(json.dumps({"message": f"Bad request: {e}"}))
+        self.set_header("Content-Type", "text/event-stream")
+        self.set_header("Cache-Control", "no-cache")
+        self.set_header("X-Accel-Buffering", "no")  # don't let proxies buffer it
+        self._task = asyncio.ensure_future(self._pump(req))
+        try:
+            await self._task
+        except (asyncio.CancelledError, StreamClosedError):
+            return  # client went away
+        self.finish(set_content_type="text/event-stream")
+
+
 class HealthHandler(APIHandler):
     """GET /jupyter-autocomp/health -> reports the default base URL and whether it answers."""
 
@@ -85,6 +137,7 @@ def setup_route_handlers(web_app):
     base_url = web_app.settings["base_url"]
     handlers = [
         (url_path_join(base_url, "jupyter-autocomp", "complete"), CompleteHandler),
+        (url_path_join(base_url, "jupyter-autocomp", "stream"), StreamHandler),
         (url_path_join(base_url, "jupyter-autocomp", "health"), HealthHandler),
     ]
     web_app.add_handlers(host_pattern, handlers)

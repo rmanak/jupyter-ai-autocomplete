@@ -122,3 +122,4 @@ describe('CompletionCache', () => {
     expect(c.get('m = np.', 'other')).toBeUndefined();
   });
 });
+

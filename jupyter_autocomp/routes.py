@@ -59,6 +59,7 @@ class CompleteHandler(APIHandler):
             return self.finish(json.dumps({"message": f"{type(e).__name__}: {e}"}))
         self.finish(json.dumps({
             "completion": completion,
+            "model": req.model,
             "ms": round((time.perf_counter() - t0) * 1000, 1),
         }))
 

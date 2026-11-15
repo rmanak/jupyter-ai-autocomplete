@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
-A JupyterLab 4 / Notebook 7 extension that shows grey "ghost text" code completions, accepted with **Tab**, from a local or OpenAI-compatible LLM. Phased roadmap and research notes are in `PLAN.md`. Phases 0–1 are done. Next up: streaming, more backends, a status-bar indicator.
+A JupyterLab 4 / Notebook 7 extension that shows grey "ghost text" code completions, accepted with **Tab**, from a local or OpenAI-compatible LLM. Phased roadmap and research notes are in `PLAN.md`. Phases 0–1 are done, plus the status bar, the toggle and the completions/chat backends. Next up: streaming and an offline accuracy eval.
 
 ## Environment & commands
 Always work in the project conda env. Never install into base:
@@ -35,11 +35,18 @@ Request flow: **browser provider → Jupyter server proxy → LLM**.
 - **Settings have no `schema/` dir on purpose.** They are the provider's `schema` property, so they appear under Settings → **Inline Completer** → providers.`jupyter-autocomp`. `schema.default` also overrides JupyterLab's per-provider defaults (`enabled`, `debouncerDelay`, `timeout`, `autoFillInMiddle`). Values arrive through `configure()`.
 - `context.ts` renders the notebook as one "percent-format" file: `# %%` cell separators, markdown cells become `#` comments, and outputs are skipped. Previous cells form the prefix and following cells form the suffix. When over the char budget, the farthest cells are dropped first. `shouldCompleteMultiline` picks single-line mode when the cursor is mid-line or in a comment.
 - `jupyter_autocomp/routes.py` holds `CompleteHandler` (and `/health`). It runs the backend as an asyncio task and cancels it in `on_connection_close`. The browser abort therefore closes the upstream connection, and llama.cpp stops generating.
-- `jupyter_autocomp/backends.py` streams from the LLM. Backends are async generators registered in the `BACKENDS` dict. Only `infill` (llama.cpp `/infill`) exists today. `/v1/completions` with FIM templates and a chat fallback are planned. The server's defaults come from env vars `JUPYTER_AUTOCOMP_BASE_URL` and `JUPYTER_AUTOCOMP_API_KEY`. The API key stays server-side only.
+- `jupyter_autocomp/backends.py` streams from the LLM. Backends are async generators registered in `BACKENDS`:
+  - `infill`: llama.cpp `/infill`; the server applies the FIM tokens.
+  - `completions`: `/v1/completions` with a raw FIM prompt. `templates.py` picks the template from the model name, or the `template` setting forces one.
+  - `chat`: `/v1/chat/completions` with a `<COMPLETION>` hole-filler prompt and thinking turned off.
+  When `model` is empty it comes from the server's first `/v1/models` entry, cached per URL. The resolved model is echoed back so the status bar can show it.
+  `_v1()` appends `/v1` only to a bare host. The server's defaults come from env vars `JUPYTER_AUTOCOMP_BASE_URL` and `JUPYTER_AUTOCOMP_API_KEY`. The API key stays server-side only.
+- Status and toggle (`src/status.ts`, `index.ts`): the provider emits `statusChanged` (idle/loading/error/disabled) and `errorOccurred`, once per distinct message, which triggers a toast. The status-bar item and the `jupyter-autocomp:toggle` command flip `providers.jupyter-autocomp.enabled` in the **inline-completer's** settings. JupyterLab still calls `configure()` on disabled providers, so the UI follows edits made in the Settings Editor.
 
 ## Constraints / gotchas
 - The inline completer API is **Alpha**. Keep `jupyterlab>=4.4,<5` and check `node_modules/@jupyterlab/completer/lib/tokens.d.ts` before relying on API details.
 - `stream(token)` yields *cumulative* `insertText`. JupyterLab replaces the whole text and only diffs it for the animation.
 - The TS target and lib are **ES2018**, so avoid newer built-ins like `String.prototype.trimStart`.
+- Galata mocks the settings API in the page (`mockSettings`), so a REST `PUT /lab/api/settings` from a test has no effect. Seed settings per test with `test.use({ mockSettings: {...galata.DEFAULT_SETTINGS, ...} })`, as `ui-tests/tests/jupyter_autocomp.spec.ts` does.
 - Logic adapted from Continue (Apache-2.0, `core/autocomplete`) must be listed in `NOTICE`.
 - In the interactive shell, `grep` is an ugrep wrapper that can silently skip files. Use `command grep` or `rg`.

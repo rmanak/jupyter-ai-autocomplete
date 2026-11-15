@@ -2,7 +2,7 @@
 
 Grey "ghost text" code completion for **JupyterLab 4.4+ and Notebook 7**. Press **Tab** to accept.
 It works like Continue's tab-autocomplete in VS Code, but runs against **your own LLM server**
-(llama.cpp now; OpenAI-compatible `/v1/completions` and chat backends are planned, see `PLAN.md`).
+(llama.cpp, vLLM, Ollama, LM Studio, or any OpenAI-compatible API).
 
 * Fill-in-the-middle (FIM) prompting with notebook context: earlier cells come before the cursor,
   later cells come after it, and markdown cells are included as `#` comments.
@@ -20,6 +20,11 @@ It works like Continue's tab-autocomplete in VS Code, but runs against **your ow
    - **Tab** / Alt+End accepts, **Alt+[ / Alt+]** cycles, **Alt+\\** requests a completion explicitly.
    - Settings → Settings Editor → **Inline Completer** → *LLM autocomplete* has the base URL,
      model, max tokens, multi-line mode, context size, debounce delay (250 ms) and timeout.
+   - **Backend**: `infill` (llama.cpp `/infill`, the default), `completions` (`/v1/completions` with a FIM
+     template picked from the model name: Qwen-coder, StarCoder, DeepSeek, Codestral, CodeLlama, CodeGemma, Granite),
+     or `chat` (`/v1/chat/completions`, for chat-only models; slower).
+   - The status-bar dot shows ready / thinking / error / off. Click it, or use the command palette's
+     *Disable/Enable LLM Autocomplete*, to toggle. Hover it to see the backend, model, latency or last error.
    - Check the LLM connection: `GET /jupyter-autocomp/health`.
 
 ## Develop

@@ -3,3 +3,55 @@
 
     https://jupyterlab.readthedocs.io/en/stable/developer/css.html
 */
+
+/* Status-bar item: dot + label. Colors come from JupyterLab theme variables. */
+.jp-AutocompStatus {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  cursor: pointer;
+  font-size: var(--jp-ui-font-size1);
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-AutocompStatus:hover {
+  background: var(--jp-layout-color2);
+}
+
+.jp-AutocompStatus-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--jp-success-color1);
+}
+
+.jp-AutocompStatus.jp-mod-loading .jp-AutocompStatus-dot {
+  background: var(--jp-brand-color1);
+  animation: jp-autocomp-pulse 0.9s ease-in-out infinite;
+}
+
+.jp-AutocompStatus.jp-mod-error .jp-AutocompStatus-dot {
+  background: var(--jp-error-color1);
+}
+
+.jp-AutocompStatus.jp-mod-disabled {
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-AutocompStatus.jp-mod-disabled .jp-AutocompStatus-dot {
+  background: transparent;
+  border: 1px solid var(--jp-ui-font-color2);
+}
+
+@keyframes jp-autocomp-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jp-AutocompStatus.jp-mod-loading .jp-AutocompStatus-dot {
+    animation: none;
+  }
+}

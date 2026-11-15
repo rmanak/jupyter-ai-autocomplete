@@ -2230,7 +2230,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jupyterlab/apputils@npm:^4.7.6":
+"@jupyterlab/apputils@npm:^4.5.0, @jupyterlab/apputils@npm:^4.7.6":
   version: 4.7.6
   resolution: "@jupyterlab/apputils@npm:4.7.6"
   dependencies:
@@ -3047,7 +3047,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lumino/commands@npm:^2.3.3, @lumino/commands@npm:^2.3.4":
+"@lumino/commands@npm:^2.0.0, @lumino/commands@npm:^2.3.3, @lumino/commands@npm:^2.3.4":
   version: 2.3.4
   resolution: "@lumino/commands@npm:2.3.4"
   dependencies:
@@ -3132,7 +3132,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lumino/signaling@npm:^1.10.0 || ^2.0.0, @lumino/signaling@npm:^2.1.5, @lumino/signaling@npm:^2.1.6":
+"@lumino/signaling@npm:^1.10.0 || ^2.0.0, @lumino/signaling@npm:^2.0.0, @lumino/signaling@npm:^2.1.5, @lumino/signaling@npm:^2.1.6":
   version: 2.1.6
   resolution: "@lumino/signaling@npm:2.1.6"
   dependencies:
@@ -3151,7 +3151,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lumino/widgets@npm:^1.37.2 || ^2.8.0, @lumino/widgets@npm:^2.10.0, @lumino/widgets@npm:^2.8.0":
+"@lumino/widgets@npm:^1.37.2 || ^2.8.0, @lumino/widgets@npm:^2.0.0, @lumino/widgets@npm:^2.10.0, @lumino/widgets@npm:^2.8.0":
   version: 2.10.0
   resolution: "@lumino/widgets@npm:2.10.0"
   dependencies:
@@ -7657,6 +7657,7 @@ __metadata:
     "@jupyter/builder": ^1.2.0
     "@jupyter/eslint-plugin": ^1.1.0
     "@jupyterlab/application": ^4.0.0
+    "@jupyterlab/apputils": ^4.5.0
     "@jupyterlab/completer": ^4.4.0
     "@jupyterlab/coreutils": ^6.0.0
     "@jupyterlab/notebook": ^4.4.0
@@ -7664,7 +7665,10 @@ __metadata:
     "@jupyterlab/settingregistry": ^4.4.0
     "@jupyterlab/statusbar": ^4.4.0
     "@jupyterlab/testutils": ^4.0.0
+    "@lumino/commands": ^2.0.0
     "@lumino/coreutils": ^2.0.0
+    "@lumino/signaling": ^2.0.0
+    "@lumino/widgets": ^2.0.0
     "@types/jest": ^29.2.0
     "@types/json-schema": ^7.0.11
     "@types/react": ^18.0.26

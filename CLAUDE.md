@@ -10,11 +10,11 @@ Always work in the project conda env. Never install into base:
 ```bash
 source ~/anaconda3/etc/profile.d/conda.sh && conda activate jupyter-autocomp
 ```
-- First-time setup: `pip install -e ".[test]" && jupyter labextension develop . --overwrite && jupyter server extension enable jupyter_autocomp`
+- First-time setup: `pip install -e ".[test]" && jupyter labextension develop . --overwrite && jupyter server extension enable jupyter_ai_autocomplete`
 - Build the frontend: `jlpm build`, or `jlpm watch` and then reload the browser. Python changes need a Jupyter server restart.
 - Typecheck: `npx tsc --noEmit -p .`. Lint/format: `jlpm lint` (prettier + eslint + stylelint).
 - TS unit tests (jest): `jlpm jest`. For a single test: `jlpm jest -t 'stops when reproducing the suffix'`
-- Python tests: `pytest -q jupyter_autocomp`. For a single test: `pytest -q jupyter_autocomp/tests/test_routes.py::test_complete`
+- Python tests: `pytest -q jupyter_ai_autocomplete`. For a single test: `pytest -q jupyter_ai_autocomplete/tests/test_routes.py::test_complete`
 - E2E (galata/playwright): `cd ui-tests && npx playwright test`. It needs a live FIM model on `:8080`. Against another server, prefix the command with `AUTOCOMP_BACKEND=… AUTOCOMP_BASE_URL=…`, e.g. `ollama` with `:11434`, or `completions` with `:8002` for vLLM.
 - Offline eval: `python eval/build_tasks.py ~/claude_workspace -o eval/tasks.jsonl`, then `python eval/run_eval.py [--only a,b] [--limit N] [--context-mode write|edit]`. `run_eval.py` compiles `eval/cli.ts` and the frontend's `src/context.ts` and `src/filters.ts` to CommonJS (`eval/.build`), so prompts and post-processing match the extension exactly. Configs live in `eval/configs.json`; unreachable servers are skipped. Never commit `eval/tasks.jsonl` or `eval/results/`: they contain the user's notebook code.
 
@@ -34,27 +34,27 @@ Request flow: **browser provider → Jupyter server proxy → LLM**.
   - builds FIM prefix/suffix (`context.ts`);
   - checks the cache (`cache.ts`);
   - aborts the previous in-flight request;
-  - POSTs to `/jupyter-autocomp/complete`;
+  - POSTs to `/jupyter-ai-autocomplete/complete`;
   - post-processes the result (`filters.ts`).
-- **Settings have no `schema/` dir on purpose.** They are the provider's `schema` property, so they appear under Settings → **Inline Completer** → providers.`jupyter-autocomp`. `schema.default` also overrides JupyterLab's per-provider defaults (`enabled`, `debouncerDelay`, `timeout`, `autoFillInMiddle`). Values arrive through `configure()`.
+- **Settings have no `schema/` dir on purpose.** They are the provider's `schema` property, so they appear under Settings → **Inline Completer** → providers.`jupyter-ai-autocomplete`. `schema.default` also overrides JupyterLab's per-provider defaults (`enabled`, `debouncerDelay`, `timeout`, `autoFillInMiddle`). Values arrive through `configure()`.
 - `context.ts` renders the notebook as one "percent-format" file: `# %%` cell separators, markdown cells become `#` comments, and outputs are skipped. Previous cells form the prefix and following cells form the suffix. When over the char budget, the farthest cells are dropped first. `shouldCompleteMultiline` picks single-line mode when the cursor is mid-line or in a comment.
-- `jupyter_autocomp/routes.py` holds `/stream` (SSE, used by the UI), `/complete` (one-shot JSON) and `/health`. Each handler runs the backend as an asyncio task and cancels it in `on_connection_close`. The browser abort therefore closes the upstream connection, and the LLM stops generating.
+- `jupyter_ai_autocomplete/routes.py` holds `/stream` (SSE, used by the UI), `/complete` (one-shot JSON) and `/health`. Each handler runs the backend as an asyncio task and cancels it in `on_connection_close`. The browser abort therefore closes the upstream connection, and the LLM stops generating.
 - Cell markers: `# %%` is *not* a server-side stop, because small models often open with one. `cutAtCellMarker` in `filters.ts` drops a leading code-cell marker and cuts at any later one, and `shouldStopEarly` aborts the stream at the next marker.
 - Streaming (`src/streaming.ts`): `fetch()` starts a `StreamSession` and returns as soon as there's displayable text, as an item with `isIncomplete` and a `token`. JupyterLab then pulls the rest through `stream(token)`. The session re-runs `postprocessCompletion` on the accumulated raw text on every chunk. `shouldStopEarly` aborts the request once the output would be cut anyway. If the user types characters that match an in-flight session, `fetch()` reuses it with a `skip` offset instead of starting a new request.
 - JupyterLab never auto-triggers inline completion when only whitespace precedes the cursor (`handler.js` `_makeInlineRequest`). `installNewLineTrigger` in `index.ts` therefore runs `inline-completer:invoke` after a plain Enter.
-- `jupyter_autocomp/backends.py` streams from the LLM. Backends are async generators registered in `BACKENDS`:
+- `jupyter_ai_autocomplete/backends.py` streams from the LLM. Backends are async generators registered in `BACKENDS`:
   - `infill`: llama.cpp `/infill`; the server applies the FIM tokens.
   - `completions`: `/v1/completions` with a raw FIM prompt. `templates.py` picks the template from the model name, or the `template` setting forces one.
   - `ollama`: Ollama's `/api/generate` with `raw: true` and NDJSON streaming. Ollama's `/v1/completions` puts prompts through the model's chat renderer, and `suffix` is rejected ("does not support insert") for qwen3-coder.
   - `chat`: `/v1/chat/completions` with a `<COMPLETION>` hole-filler prompt and thinking turned off.
   When `model` is empty it comes from the server's first `/v1/models` entry, cached per URL. The resolved model is echoed back so the status bar can show it.
-  `_v1()` appends `/v1` only to a bare host. The server's defaults come from env vars `JUPYTER_AUTOCOMP_BASE_URL` and `JUPYTER_AUTOCOMP_API_KEY`. The API key stays server-side only.
-- Status and toggle (`src/status.ts`, `index.ts`): the provider emits `statusChanged` (idle/loading/error/disabled) and `errorOccurred`, once per distinct message, which triggers a toast. The status-bar item and the `jupyter-autocomp:toggle` command flip `providers.jupyter-autocomp.enabled` in the **inline-completer's** settings. JupyterLab still calls `configure()` on disabled providers, so the UI follows edits made in the Settings Editor.
+  `_v1()` appends `/v1` only to a bare host. The server's defaults come from env vars `JUPYTER_AI_AUTOCOMPLETE_BASE_URL` and `JUPYTER_AI_AUTOCOMPLETE_API_KEY`. The API key stays server-side only.
+- Status and toggle (`src/status.ts`, `index.ts`): the provider emits `statusChanged` (idle/loading/error/disabled) and `errorOccurred`, once per distinct message, which triggers a toast. The status-bar item and the `jupyter-ai-autocomplete:toggle` command flip `providers.jupyter-ai-autocomplete.enabled` in the **inline-completer's** settings. JupyterLab still calls `configure()` on disabled providers, so the UI follows edits made in the Settings Editor.
 
 ## Constraints / gotchas
 - The inline completer API is **Alpha**. Keep `jupyterlab>=4.4,<5` and check `node_modules/@jupyterlab/completer/lib/tokens.d.ts` before relying on API details.
 - `stream(token)` yields *cumulative* `insertText`. JupyterLab replaces the whole text and only diffs it for the animation.
 - The TS target and lib are **ES2018**, so avoid newer built-ins like `String.prototype.trimStart`.
-- Galata mocks the settings API in the page (`mockSettings`), so a REST `PUT /lab/api/settings` from a test has no effect. Seed settings per test with `test.use({ mockSettings: {...galata.DEFAULT_SETTINGS, ...} })`, as `ui-tests/tests/jupyter_autocomp.spec.ts` does.
+- Galata mocks the settings API in the page (`mockSettings`), so a REST `PUT /lab/api/settings` from a test has no effect. Seed settings per test with `test.use({ mockSettings: {...galata.DEFAULT_SETTINGS, ...} })`, as `ui-tests/tests/jupyter_ai_autocomplete.spec.ts` does.
 - Logic adapted from Continue (Apache-2.0, `core/autocomplete`) must be listed in `NOTICE`.
 - In the interactive shell, `grep` is an ugrep wrapper that can silently skip files. Use `command grep` or `rg`.

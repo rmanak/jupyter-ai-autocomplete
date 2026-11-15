@@ -1,5 +1,5 @@
-jupyter_autocomp includes ideas and small code fragments adapted from Continue
+jupyter_ai_autocomplete includes ideas and small code fragments adapted from Continue
 (https://github.com/continuedev/continue), Copyright (c) Continue Dev, Inc.,
 licensed under the Apache License, Version 2.0. Adapted parts live in
 src/filters.ts, src/cache.ts, src/context.ts (shouldCompleteMultiline) and
-jupyter_autocomp/templates.py (FIM prompt formats and stop tokens).
+jupyter_ai_autocomplete/templates.py (FIM prompt formats and stop tokens).

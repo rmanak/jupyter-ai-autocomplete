@@ -30,8 +30,8 @@ import httpx
 
 from . import templates
 
-DEFAULT_BASE_URL = os.environ.get("JUPYTER_AUTOCOMP_BASE_URL", "http://localhost:8080")
-API_KEY = os.environ.get("JUPYTER_AUTOCOMP_API_KEY", "")
+DEFAULT_BASE_URL = os.environ.get("JUPYTER_AI_AUTOCOMPLETE_BASE_URL", "http://localhost:8080")
+API_KEY = os.environ.get("JUPYTER_AI_AUTOCOMPLETE_API_KEY", "")
 
 # Generic stops that make sense for notebook code no matter which model runs.
 # Cell markers ("# %%") are NOT a server-side stop: models often *open* with one,

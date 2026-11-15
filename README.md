@@ -1,4 +1,4 @@
-# jupyter_autocomp
+# jupyter_ai_autocomplete
 
 Grey "ghost text" code completion for **JupyterLab 4.4+ and Jupyter Notebook 7**, powered by
 **your own LLM**. Type in a code cell, a suggestion appears in grey, press **Tab** to accept.
@@ -33,8 +33,8 @@ conda create -n autocomp -c conda-forge python=3.12 nodejs=22
 conda activate autocomp
 pip install "jupyterlab>=4.4,<5"
 
-git clone https://github.com/<your-user>/jupyter_autocomp.git
-cd jupyter_autocomp
+git clone https://github.com/rmanak/jupyter-ai-autocomplete.git
+cd jupyter_ai_autocomplete
 pip install .
 ```
 
@@ -42,8 +42,8 @@ pip install .
 takes a minute. Then check that both halves are installed and enabled:
 
 ```bash
-jupyter labextension list          # should show: jupyter_autocomp v0.1.0 enabled OK
-jupyter server extension list      # should show: jupyter_autocomp enabled
+jupyter labextension list          # should show: jupyter_ai_autocomplete v0.1.0 enabled OK
+jupyter server extension list      # should show: jupyter_ai_autocomplete enabled
 ```
 
 ## Run a model server
@@ -82,7 +82,7 @@ If you use **llama.cpp on `localhost:8080`**, there's nothing to configure. Skip
 Otherwise, either:
 
 - **Set it in JupyterLab:** _Settings → Settings Editor → Inline Completer_, find
-  _LLM autocomplete (jupyter_autocomp)_ under providers, and set **Backend** and **Base URL**:
+  _LLM autocomplete (jupyter_ai_autocomplete)_ under providers, and set **Backend** and **Base URL**:
 
   | Server                                                       | Backend       | Base URL                     |
   | ------------------------------------------------------------ | ------------- | ---------------------------- |
@@ -95,14 +95,52 @@ Otherwise, either:
   only place to put an API key, which is never sent to the browser:
 
   ```bash
-  export JUPYTER_AUTOCOMP_BASE_URL=http://localhost:11434
-  export JUPYTER_AUTOCOMP_API_KEY=sk-...        # only if your server needs one
+  export JUPYTER_AI_AUTOCOMPLETE_BASE_URL=http://localhost:11434
+  export JUPYTER_AI_AUTOCOMPLETE_API_KEY=sk-...        # only if your server needs one
   ```
 
   You still pick the **Backend** in the Settings Editor.
 
-When **Model** is empty, the first model the server lists at `/v1/models` is used. Set it
-explicitly for Ollama, e.g. `qwen2.5-coder:1.5b-base`, or when the server hosts several models.
+### Choosing the model
+
+When **Model** is empty, the extension uses the first model the server lists at `/v1/models`. That
+is fine for llama.cpp and vLLM serving a single model. Set it explicitly when the server hosts
+several models (Ollama usually does), or when you want a specific one.
+
+1. **Find the model id** your server uses:
+
+   ```bash
+   curl -s http://localhost:8080/v1/models | python -m json.tool   # llama.cpp / vLLM / LM Studio: the "id" fields
+   ollama list                                                     # Ollama: the NAME column, e.g. qwen2.5-coder:1.5b-base
+   ```
+
+2. **Set it** in _Settings → Settings Editor → Inline Completer_ → providers →
+   _LLM autocomplete (jupyter_ai_autocomplete)_ → **Model**. Or open the JSON editor (_Advanced Settings
+   Editor_, or the `{}` button in the Settings Editor) for _Inline Completer_ and add:
+
+   ```json
+   {
+     "providers": {
+       "jupyter-ai-autocomplete": {
+         "backend": "ollama",
+         "baseUrl": "http://localhost:11434",
+         "model": "qwen2.5-coder:1.5b-base"
+       }
+     }
+   }
+   ```
+
+The change applies immediately, with no restart. Hover the status-bar dot to check which model is
+in use. Notes:
+
+- The model can only be set in the settings, not with an environment variable.
+- The id must match the server exactly, including any `:tag` or `org/` prefix (vLLM uses the
+  Hugging Face name, e.g. `Qwen/Qwen2.5-Coder-1.5B`, unless started with `--served-model-name`).
+- With `infill`, the setting has no effect: llama.cpp's `/infill` always uses the model that
+  llama-server loaded. To switch models there, restart llama-server with another one.
+- With **FIM template** on `auto`, the prompt format is picked from the model name. If your model
+  id doesn't contain the family name (`qwen`, `starcoder`, `deepseek`, …), set the template
+  explicitly.
 
 <details>
 <summary>All settings</summary>
@@ -110,7 +148,7 @@ explicitly for Ollama, e.g. `qwen2.5-coder:1.5b-base`, or when the server hosts 
 | Setting                               | Default            | Meaning                                                                                                                                            |
 | ------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Backend                               | `infill`           | `infill` / `completions` / `ollama` / `chat` (see above)                                                                                           |
-| Base URL                              | _(empty)_          | LLM server. Empty means `$JUPYTER_AUTOCOMP_BASE_URL` or `http://localhost:8080`. `/v1` is added when the URL has no path.                          |
+| Base URL                              | _(empty)_          | LLM server. Empty means `$JUPYTER_AI_AUTOCOMPLETE_BASE_URL` or `http://localhost:8080`. `/v1` is added when the URL has no path.                   |
 | Model                                 | _(empty)_          | Model id. Empty means the first one at `/v1/models`.                                                                                               |
 | FIM template                          | `auto`             | For `completions`/`ollama`: picked from the model name, or force `qwen`, `starcoder`, `deepseek`, `codestral`, `codellama`, `codegemma`, `granite` |
 | Max tokens (multi-line / single-line) | 128 / 48           | Generation limits                                                                                                                                  |
@@ -144,6 +182,23 @@ The **status-bar dot** shows ready / thinking / error / off. Hover it to see the
 latency, or the last error. Click it, or run _Disable/Enable LLM Autocomplete_ from the command
 palette, to turn completions off and on.
 
+**Only want the LLM suggestions?** JupyterLab's own Tab dropdown (kernel/jedi and in-notebook
+word completions) is separate from this extension. To turn it off, add the following under
+_Settings → Code Completion_ (JSON editor). A negative rank disables a provider:
+
+```json
+{
+  "availableProviders": {
+    "CompletionProvider:kernel": -1,
+    "CompletionProvider:context": -1
+  }
+}
+```
+
+Tab then accepts the ghost text when there is some, and indents otherwise. Also keep the built-in
+`@jupyterlab/inline-completer:history` provider disabled under _Settings → Inline Completer_. It's
+off by default.
+
 ## Troubleshooting
 
 - **No ghost text at all.**
@@ -153,7 +208,7 @@ palette, to turn completions off and on.
   - Check that the provider is enabled under _Settings → Inline Completer_.
 - **The dot turns red, or an error toast appears.** The Jupyter server can't reach the model.
   Hover the dot for the error, and check the server-side connection at
-  `http://localhost:8888/jupyter-autocomp/health` (open it in the same browser, while logged in to
+  `http://localhost:8888/jupyter-ai-autocomplete/health` (open it in the same browser, while logged in to
   Jupyter). Make sure the Base URL and Backend match your server.
 - **Suggestions are garbage or just repeat the code.**
   - The model probably isn't a FIM coder model, or the FIM template is wrong. Use a `*-Coder` base
@@ -169,7 +224,7 @@ palette, to turn completions off and on.
 ## Uninstall
 
 ```bash
-pip uninstall jupyter_autocomp
+pip uninstall jupyter_ai_autocomplete
 ```
 
 ## Development
@@ -177,18 +232,18 @@ pip uninstall jupyter_autocomp
 ```bash
 pip install -e ".[test]"
 jupyter labextension develop . --overwrite
-jupyter server extension enable jupyter_autocomp
+jupyter server extension enable jupyter_ai_autocomplete
 jlpm build              # or: jlpm watch, then reload the browser. Python changes need a server restart.
 
 jlpm jest               # frontend unit tests (context building, filters, cache, streaming)
-pytest -q jupyter_autocomp                  # server handler tests
+pytest -q jupyter_ai_autocomplete                  # server handler tests
 cd ui-tests && npx playwright test          # end-to-end tests on 127.0.0.1:8898; needs a FIM model on :8080
 AUTOCOMP_BACKEND=ollama AUTOCOMP_BASE_URL=http://localhost:11434 npx playwright test
 ```
 
-The request flow is **browser provider → Jupyter server proxy (`/jupyter-autocomp/stream`) → LLM**.
+The request flow is **browser provider → Jupyter server proxy (`/jupyter-ai-autocomplete/stream`) → LLM**.
 The UI is JupyterLab's built-in inline completer. This extension registers a provider for it, see
-`src/index.ts` and `src/provider.ts`. The server-side backends are in `jupyter_autocomp/backends.py`.
+`src/index.ts` and `src/provider.ts`. The server-side backends are in `jupyter_ai_autocomplete/backends.py`.
 
 ### Offline eval
 

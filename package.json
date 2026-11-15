@@ -1,5 +1,5 @@
 {
-    "name": "jupyter_autocomp",
+    "name": "jupyter_ai_autocomplete",
     "version": "0.1.0",
     "description": "Ghost-text inline code completion for JupyterLab/Notebook 7 backed by local or OpenAI-compatible LLMs",
     "keywords": [
@@ -7,9 +7,9 @@
         "jupyterlab",
         "jupyterlab-extension"
     ],
-    "homepage": "https://github.com/local/jupyter_autocomp",
+    "homepage": "https://github.com/rmanak/jupyter-ai-autocomplete",
     "bugs": {
-        "url": "https://github.com/local/jupyter_autocomp/issues"
+        "url": "https://github.com/rmanak/jupyter-ai-autocomplete/issues"
     },
     "license": "BSD-3-Clause",
     "author": {
@@ -26,7 +26,7 @@
     "style": "style/index.css",
     "repository": {
         "type": "git",
-        "url": "https://github.com/local/jupyter_autocomp.git"
+        "url": "https://github.com/rmanak/jupyter-ai-autocomplete.git"
     },
     "scripts": {
         "build": "jlpm build:lib && jlpm build:labextension:dev",
@@ -38,7 +38,7 @@
         "clean": "jlpm clean:lib",
         "clean:lib": "rimraf lib tsconfig.tsbuildinfo",
         "clean:lintcache": "rimraf .eslintcache .stylelintcache",
-        "clean:labextension": "rimraf jupyter_autocomp/labextension jupyter_autocomp/_version.py",
+        "clean:labextension": "rimraf jupyter_ai_autocomplete/labextension jupyter_ai_autocomplete/_version.py",
         "clean:all": "jlpm clean:lib && jlpm clean:labextension && jlpm clean:lintcache",
         "eslint": "jlpm eslint:check --fix",
         "eslint:check": "eslint . --cache",
@@ -115,12 +115,12 @@
                     "pip"
                 ],
                 "base": {
-                    "name": "jupyter_autocomp"
+                    "name": "jupyter_ai_autocomplete"
                 }
             }
         },
         "extension": true,
-        "outputDir": "jupyter_autocomp/labextension"
+        "outputDir": "jupyter_ai_autocomplete/labextension"
     },
     "prettier": {
         "singleQuote": true,

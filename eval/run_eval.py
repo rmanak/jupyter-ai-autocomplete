@@ -1,9 +1,9 @@
-"""Offline eval for jupyter_autocomp: line completion on real notebooks.
+"""Offline eval for jupyter_ai_autocomplete: line completion on real notebooks.
 
 Pipeline (each step uses the code the extension ships):
   1. tasks.jsonl (build_tasks.py)
   2. prompts: src/context.ts via eval/cli.ts, the same prefix/suffix as in JupyterLab
-  3. generation: jupyter_autocomp/backends.py, the same requests the server sends
+  3. generation: jupyter_ai_autocomplete/backends.py, the same requests the server sends
   4. cleanup: src/filters.ts via eval/cli.ts, the same post-processing
   5. scoring: the first suggested line against the hidden rest of the line
 
@@ -40,7 +40,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
-from jupyter_autocomp import backends  # noqa: E402
+from jupyter_ai_autocomplete import backends  # noqa: E402
 
 BUILD = HERE / ".build"
 CLI = BUILD / "eval" / "cli.js"
@@ -285,7 +285,7 @@ def main(argv=None):
               f"first token cold/warm p50 {s['cold_first_p50']:.0f}/{s['warm_first_p50']:.0f} ms",
               file=sys.stderr)
 
-    md = (f"# jupyter_autocomp eval ({stamp}, context={args.context_mode}, "
+    md = (f"# jupyter_ai_autocomplete eval ({stamp}, context={args.context_mode}, "
           f"{len(tasks)} tasks)\n\n" + table(results) + "\n")
     (outdir / "summary.md").write_text(md)
     (outdir / "summary.json").write_text(json.dumps(results, indent=2))

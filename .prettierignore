@@ -3,6 +3,6 @@ node_modules
 **/lib
 **/package.json
 !/package.json
-jupyter_autocomp
+jupyter_ai_autocomplete
 eslint.config.mjs
 .venv

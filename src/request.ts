@@ -18,7 +18,7 @@ export async function requestAPI<T>(
   // Make request to Jupyter API
   const requestUrl = URLExt.join(
     serverSettings.baseUrl,
-    'jupyter-autocomp', // our server extension's API namespace
+    'jupyter-ai-autocomplete', // our server extension's API namespace
     endPoint
   );
 

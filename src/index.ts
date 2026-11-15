@@ -13,7 +13,7 @@ import { AutocompStatus } from './status';
 
 const INLINE_COMPLETER_PLUGIN =
   '@jupyterlab/completer-extension:inline-completer';
-const TOGGLE_COMMAND = 'jupyter-autocomp:toggle';
+const TOGGLE_COMMAND = 'jupyter-ai-autocomplete:toggle';
 const INVOKE_INLINE = 'inline-completer:invoke';
 
 /**
@@ -62,7 +62,7 @@ function installNewLineTrigger(
  * Tab accepts, Alt+[ / Alt+] cycle, Alt+\ requests a completion explicitly.
  */
 const plugin: JupyterFrontEndPlugin<void> = {
-  id: 'jupyter_autocomp:plugin',
+  id: 'jupyter_ai_autocomplete:plugin',
   description:
     'Ghost-text inline code completion backed by local or OpenAI-compatible LLMs',
   autoStart: true,
@@ -114,14 +114,16 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
     if (statusBar) {
       const item = new AutocompStatus(provider, app.commands, TOGGLE_COMMAND);
-      statusBar.registerStatusItem('jupyter_autocomp:status', {
+      statusBar.registerStatusItem('jupyter_ai_autocomplete:status', {
         item,
         align: 'left',
         rank: 100
       });
     }
 
-    console.log('jupyter_autocomp: inline completion provider registered');
+    console.log(
+      'jupyter_ai_autocomplete: inline completion provider registered'
+    );
   }
 };
 

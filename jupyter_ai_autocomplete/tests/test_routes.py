@@ -3,7 +3,7 @@ import json
 import pytest
 from tornado.httpclient import HTTPClientError
 
-from jupyter_autocomp import backends, routes
+from jupyter_ai_autocomplete import backends, routes
 
 
 async def _fake_infill(req, client):
@@ -19,7 +19,7 @@ async def _broken(req, client):
 
 async def test_complete(jp_fetch, monkeypatch):
     monkeypatch.setitem(backends.BACKENDS, "infill", _fake_infill)
-    r = await jp_fetch("jupyter-autocomp", "complete", method="POST",
+    r = await jp_fetch("jupyter-ai-autocomplete", "complete", method="POST",
                        body=json.dumps({"prefix": "m = ", "suffix": "", "multiline": False}))
     assert r.code == 200
     assert json.loads(r.body)["completion"] == "np.mean(x)"
@@ -28,7 +28,7 @@ async def test_complete(jp_fetch, monkeypatch):
 async def test_complete_backend_error(jp_fetch, monkeypatch):
     monkeypatch.setitem(backends.BACKENDS, "infill", _broken)
     with pytest.raises(HTTPClientError) as e:
-        await jp_fetch("jupyter-autocomp", "complete", method="POST",
+        await jp_fetch("jupyter-ai-autocomplete", "complete", method="POST",
                        body=json.dumps({"prefix": "x"}))
     assert e.value.code == 502
 
@@ -42,7 +42,7 @@ def test_request_defaults():
 
 # --- templates / URL handling -------------------------------------------------
 
-from jupyter_autocomp import templates
+from jupyter_ai_autocomplete import templates
 
 
 @pytest.mark.parametrize("model,name", [
@@ -97,7 +97,7 @@ def _events(body: bytes) -> list[dict]:
 
 async def test_stream(jp_fetch, monkeypatch):
     monkeypatch.setitem(backends.BACKENDS, "infill", _fake_infill)
-    r = await jp_fetch("jupyter-autocomp", "stream", method="POST",
+    r = await jp_fetch("jupyter-ai-autocomplete", "stream", method="POST",
                        body=json.dumps({"prefix": "m = ", "model": "fake"}))
     assert r.code == 200
     assert r.headers["Content-Type"].startswith("text/event-stream")
@@ -109,7 +109,7 @@ async def test_stream(jp_fetch, monkeypatch):
 
 async def test_stream_error_event(jp_fetch, monkeypatch):
     monkeypatch.setitem(backends.BACKENDS, "infill", _broken)
-    r = await jp_fetch("jupyter-autocomp", "stream", method="POST",
+    r = await jp_fetch("jupyter-ai-autocomplete", "stream", method="POST",
                        body=json.dumps({"prefix": "x"}))
     ev = _events(r.body)
     assert ev == [{"error": "BackendError: upstream down"}]

@@ -1,4 +1,4 @@
-# jupyter_autocomp: plan
+# jupyter_ai_autocomplete: plan
 
 Grey "ghost text" code completion in JupyterLab / Notebook 7, accepted with **Tab**, backed by
 **any local or OpenAI-compatible LLM endpoint**. It works like Continue's tab-autocomplete in VS Code.
@@ -18,7 +18,7 @@ Grey "ghost text" code completion in JupyterLab / Notebook 7, accepted with **Ta
 ```
  JupyterLab / Notebook 7 (browser)                       Jupyter server (Python)            LLM
 ┌──────────────────────────────────────────┐    ┌────────────────────────────────┐   ┌──────────────┐
-│ InlineCompletionProvider  (TypeScript)   │    │ /jupyter-autocomp/complete     │   │ llama.cpp    │
+│ InlineCompletionProvider  (TypeScript)   │    │ /jupyter-ai-autocomplete/complete     │   │ llama.cpp    │
 │  fetch(): build notebook context ────────┼───►│  (tornado handler, streaming)  ├──►│ /infill      │
 │   - prev cells → prefix, next → suffix   │SSE │  backends:                     │   │ /v1/completions│
 │   - abort on new keystroke               │◄───┤   infill | completions | chat  │   │ /v1/chat/... │
@@ -63,7 +63,7 @@ Shared settings: `temperature≈0.01`, `max_tokens` 64 for single-line / 256 for
 
 ## 4. Repo layout (from the official `jupyterlab/extension-template`, frontend-and-server)
 ```
-jupyter_autocomp/
+jupyter_ai_autocomplete/
   pyproject.toml, package.json, tsconfig.json
   src/index.ts            # plugin: requires ICompletionProviderManager, registers provider
   src/provider.ts         # IInlineCompletionProvider (fetch/stream/configure)
@@ -71,16 +71,16 @@ jupyter_autocomp/
   src/filters.ts          # stream filters + postprocess (Continue port)
   src/cache.ts            # LRU + generator reuse
   schema/plugin.json      # settings: backend, base_url, model, api_key(server-side), max_tokens, ...
-  jupyter_autocomp/       # server extension
-    handlers.py           # POST /jupyter-autocomp/complete  (streams SSE)
+  jupyter_ai_autocomplete/       # server extension
+    handlers.py           # POST /jupyter-ai-autocomplete/complete  (streams SSE)
     backends.py           # infill / completions / chat via httpx.AsyncClient
     templates.py
   ui-tests/  tests/       # jest (TS pure functions), pytest (handlers w/ mock LLM), galata (e2e)
 ```
-The server-side config (base URL, API key) can also come from `jupyter_server_config.py` / env vars (`JUPYTER_AUTOCOMP_BASE_URL`), so secrets never sit in browser settings.
+The server-side config (base URL, API key) can also come from `jupyter_server_config.py` / env vars (`JUPYTER_AI_AUTOCOMPLETE_BASE_URL`), so secrets never sit in browser settings.
 
 ## 5. Phases
-0. **Env + scaffold**: conda env `jupyter-autocomp` (python 3.12, `jupyterlab>=4.4,<5`, `nodejs>=20`, `copier`, `httpx`, `pytest`). Run `copier copy --trust https://github.com/jupyterlab/extension-template .`, then `pip install -e ".[test]"`, `jupyter labextension develop . --overwrite`, `jupyter server extension enable jupyter_autocomp`, and `jlpm build` (`jlpm watch` while developing). Register the kernel. Do the 15-min check of jupyter-ai-lite completions.
+0. **Env + scaffold**: conda env `jupyter-autocomp` (python 3.12, `jupyterlab>=4.4,<5`, `nodejs>=20`, `copier`, `httpx`, `pytest`). Run `copier copy --trust https://github.com/jupyterlab/extension-template .`, then `pip install -e ".[test]"`, `jupyter labextension develop . --overwrite`, `jupyter server extension enable jupyter_ai_autocomplete`, and `jlpm build` (`jlpm watch` while developing). Register the kernel. Do the 15-min check of jupyter-ai-lite completions.
 1. **MVP**: provider + `/complete` proxy → llama.cpp `/infill`. Non-streaming. Context = current cell + previous cells. Goal: **ghost text appears and Tab accepts it** in Lab and Notebook 7.
 2. **Latency**: SSE streaming (`isIncomplete` + `stream(token)`), abort on keystroke, LRU cache, generator reuse, `cache_prompt`. Target **p50 < 400 ms to first visible token** on the 3090 Ti / Blackwell.
 3. **Quality**: Continue filters + postprocessing, multiline heuristics, markdown-as-comments, following cells as suffix, `input_extra`.

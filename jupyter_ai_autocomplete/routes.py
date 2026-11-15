@@ -23,7 +23,7 @@ def client() -> httpx.AsyncClient:
 
 
 class CompleteHandler(APIHandler):
-    """POST /jupyter-autocomp/complete -> {"completion": str, "ms": float}.
+    """POST /jupyter-ai-autocomplete/complete -> {"completion": str, "ms": float}.
 
     If the browser aborts (the user kept typing), the connection closes. We then
     cancel the upstream generation so the LLM slot is freed right away.
@@ -56,7 +56,7 @@ class CompleteHandler(APIHandler):
         except asyncio.CancelledError:
             return  # client went away; nothing to send
         except (BackendError, httpx.HTTPError) as e:
-            self.log.warning("jupyter_autocomp backend error: %s", e)
+            self.log.warning("jupyter_ai_autocomplete backend error: %s", e)
             self.set_status(502)
             return self.finish(json.dumps({"message": f"{type(e).__name__}: {e}"}))
         self.finish(json.dumps({
@@ -67,7 +67,7 @@ class CompleteHandler(APIHandler):
 
 
 class StreamHandler(APIHandler):
-    """POST /jupyter-autocomp/stream -> Server-Sent Events.
+    """POST /jupyter-ai-autocomplete/stream -> Server-Sent Events.
 
     Events: ``{"text": chunk}`` while generating, then one of
     ``{"done": true, "model": ..., "ms": ...}`` or ``{"error": message}``.
@@ -100,7 +100,7 @@ class StreamHandler(APIHandler):
             await self._send({"done": True, "model": req.model,
                               "ms": round((time.perf_counter() - t0) * 1000, 1)})
         except (BackendError, httpx.HTTPError) as e:
-            self.log.warning("jupyter_autocomp backend error: %s", e)
+            self.log.warning("jupyter_ai_autocomplete backend error: %s", e)
             await self._send({"error": f"{type(e).__name__}: {e}"})
 
     @tornado.web.authenticated
@@ -122,7 +122,7 @@ class StreamHandler(APIHandler):
 
 
 class HealthHandler(APIHandler):
-    """GET /jupyter-autocomp/health -> reports the default base URL and whether it answers."""
+    """GET /jupyter-ai-autocomplete/health -> reports the default base URL and whether it answers."""
 
     @tornado.web.authenticated
     async def get(self):
@@ -141,8 +141,8 @@ def setup_route_handlers(web_app):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
     handlers = [
-        (url_path_join(base_url, "jupyter-autocomp", "complete"), CompleteHandler),
-        (url_path_join(base_url, "jupyter-autocomp", "stream"), StreamHandler),
-        (url_path_join(base_url, "jupyter-autocomp", "health"), HealthHandler),
+        (url_path_join(base_url, "jupyter-ai-autocomplete", "complete"), CompleteHandler),
+        (url_path_join(base_url, "jupyter-ai-autocomplete", "stream"), StreamHandler),
+        (url_path_join(base_url, "jupyter-ai-autocomplete", "health"), HealthHandler),
     ]
     web_app.add_handlers(host_pattern, handlers)

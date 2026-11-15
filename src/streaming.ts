@@ -150,7 +150,7 @@ export class StreamSession {
   ): Promise<void> {
     const url = URLExt.join(
       serverSettings.baseUrl,
-      'jupyter-autocomp',
+      'jupyter-ai-autocomplete',
       'stream'
     );
     try {

@@ -7649,9 +7649,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jupyter_autocomp@workspace:.":
+"jupyter_ai_autocomplete@workspace:.":
   version: 0.0.0-use.local
-  resolution: "jupyter_autocomp@workspace:."
+  resolution: "jupyter_ai_autocomplete@workspace:."
   dependencies:
     "@eslint/js": ^9.0.0
     "@jupyter/builder": ^1.2.0

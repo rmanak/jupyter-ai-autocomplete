@@ -18,7 +18,9 @@ function withProvider(settings: Record<string, any>) {
   return {
     mockSettings: {
       ...galata.DEFAULT_SETTINGS,
-      [INLINE]: { providers: { 'jupyter-autocomp': { ...BASE, ...settings } } }
+      [INLINE]: {
+        providers: { 'jupyter-ai-autocomplete': { ...BASE, ...settings } }
+      }
     }
   };
 }
@@ -31,7 +33,9 @@ test('registers the provider', async ({ page }) => {
   await page.goto();
   expect(
     logs.filter(s =>
-      s.includes('jupyter_autocomp: inline completion provider registered')
+      s.includes(
+        'jupyter_ai_autocomplete: inline completion provider registered'
+      )
     )
   ).toHaveLength(1);
 });

@@ -8,10 +8,10 @@ has_ai_rules: false
 has_binder: false
 has_settings: true
 kind: frontend-and-server
-labextension_name: jupyter_autocomp
+labextension_name: jupyter_ai_autocomplete
 project_short_description: Ghost-text inline code completion for JupyterLab/Notebook
     7 backed by local or OpenAI-compatible LLMs
-python_name: jupyter_autocomp
-repository: https://github.com/local/jupyter_autocomp
+python_name: jupyter_ai_autocomplete
+repository: https://github.com/rmanak/jupyter-ai-autocomplete
 test: true
 

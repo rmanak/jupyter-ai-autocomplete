@@ -3153,9 +3153,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jupyter_autocomp-ui-tests@workspace:.":
+"jupyter_ai_autocomplete-ui-tests@workspace:.":
   version: 0.0.0-use.local
-  resolution: "jupyter_autocomp-ui-tests@workspace:."
+  resolution: "jupyter_ai_autocomplete-ui-tests@workspace:."
   dependencies:
     "@jupyterlab/galata": ^5.0.5
     "@playwright/test": ^1.60.0

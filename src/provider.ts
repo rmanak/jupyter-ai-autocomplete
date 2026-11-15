@@ -19,7 +19,7 @@ import {
 } from './context';
 import { StreamSession } from './streaming';
 
-export const PROVIDER_ID = 'jupyter-autocomp';
+export const PROVIDER_ID = 'jupyter-ai-autocomplete';
 
 export type Backend = 'infill' | 'completions' | 'ollama' | 'chat';
 
@@ -92,7 +92,7 @@ function notebookCells(
 
 export class LLMInlineProvider implements IInlineCompletionProvider {
   readonly identifier = PROVIDER_ID;
-  readonly name = 'LLM autocomplete (jupyter_autocomp)';
+  readonly name = 'LLM autocomplete (jupyter_ai_autocomplete)';
 
   readonly schema: ISettingRegistry.IProperty = {
     default: {
@@ -111,7 +111,7 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
       baseUrl: {
         title: 'Base URL',
         description:
-          'LLM server URL, e.g. http://localhost:8080 (/v1 is added when the URL has no path). Empty = server default ($JUPYTER_AUTOCOMP_BASE_URL or http://localhost:8080). The Jupyter server sends the request, not the browser. Set the API key with $JUPYTER_AUTOCOMP_API_KEY on the server.',
+          'LLM server URL, e.g. http://localhost:8080 (/v1 is added when the URL has no path). Empty = server default ($JUPYTER_AI_AUTOCOMPLETE_BASE_URL or http://localhost:8080). The Jupyter server sends the request, not the browser. Set the API key with $JUPYTER_AI_AUTOCOMPLETE_API_KEY on the server.',
         type: 'string'
       },
       model: {
@@ -345,7 +345,7 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
     if (session.done) {
       return { items: [{ insertText }] };
     }
-    const token = `jupyter-autocomp-${++this._tokenCounter}`;
+    const token = `jupyter-ai-autocomplete-${++this._tokenCounter}`;
     this._streams.set(token, { session, skip });
     return { items: [{ insertText, isIncomplete: true, token }] };
   }
@@ -359,7 +359,7 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
       this._setStatus({ state: 'error', message: msg });
       if (msg !== this._lastError) {
         this._lastError = msg;
-        console.warn('[jupyter_autocomp] completion failed:', msg);
+        console.warn('[jupyter_ai_autocomplete] completion failed:', msg);
         this._errorOccurred.emit(msg);
       }
       return;

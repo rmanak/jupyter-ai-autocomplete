@@ -8,8 +8,8 @@ generating, which frees the slot.
 
 Backends:
   infill       llama.cpp native ``/infill``. The server applies the model's FIM tokens.
-  completions  OpenAI ``/v1/completions`` with a raw FIM prompt (llama.cpp, vLLM,
-               Ollama, LM Studio, TGI...). The template is picked from the model name.
+  completions  OpenAI ``/v1/completions`` with a raw FIM prompt (vLLM, llama.cpp,
+               LM Studio, TGI...). The template is picked from the model name.
   ollama       Ollama native ``/api/generate`` with ``raw: true`` and a FIM prompt.
                Ollama's ``/v1/completions`` puts the prompt through the model's chat
                renderer (you get "```python" back), and ``suffix`` is rejected for
@@ -34,7 +34,9 @@ DEFAULT_BASE_URL = os.environ.get("JUPYTER_AUTOCOMP_BASE_URL", "http://localhost
 API_KEY = os.environ.get("JUPYTER_AUTOCOMP_API_KEY", "")
 
 # Generic stops that make sense for notebook code no matter which model runs.
-COMMON_STOPS = ["\n# %%", "```", "<|endoftext|>", "<|file_sep|>", "<|fim_prefix|>",
+# Cell markers ("# %%") are NOT a server-side stop: models often *open* with one,
+# and the frontend drops a leading marker and cuts at any later one.
+COMMON_STOPS = ["```", "<|endoftext|>", "<|file_sep|>", "<|fim_prefix|>",
                 "<|fim_suffix|>", "<|fim_middle|>", "<|im_end|>"]
 # OpenAI caps `stop` at 4 entries; llama.cpp/vLLM accept more.
 OPENAI_HOSTS = {"api.openai.com"}
@@ -186,10 +188,10 @@ async def stream_completions(req: CompletionRequest, client: httpx.AsyncClient) 
         "top_p": 0.95,
         "stop": req.stops(tpl.stop),
         "stream": True,
-        "cache_prompt": True,  # llama.cpp: reuse the KV cache across keystrokes
+        # No server-specific fields: llama.cpp caches prompts by default and vLLM
+        # does automatic prefix caching, so consecutive keystrokes reuse the KV cache.
     }
     if _is_openai(req.base_url):
-        body.pop("cache_prompt")
         body["stop"] = body["stop"][:4]
     async with client.stream("POST", _v1(req.base_url) + "/completions", json=body,
                              headers=_headers()) as resp:
@@ -253,9 +255,8 @@ async def stream_chat(req: CompletionRequest, client: httpx.AsyncClient) -> Asyn
         "stream": True,
     }
     if not _is_openai(req.base_url):
-        # llama.cpp / vLLM: turn off reasoning for Qwen3-style hybrid models.
+        # llama.cpp / vLLM / Ollama: turn off reasoning for Qwen3-style hybrid models.
         body["chat_template_kwargs"] = {"enable_thinking": False}
-        body["cache_prompt"] = True
     parts: list[str] = []
     async with client.stream("POST", _v1(req.base_url) + "/chat/completions", json=body,
                              headers=_headers()) as resp:

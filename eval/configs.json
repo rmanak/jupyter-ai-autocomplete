@@ -1,0 +1,11 @@
+[
+  {"name": "ollama-fim", "backend": "ollama", "base_url": "http://localhost:11434"},
+  {"name": "ollama-fim-cell-only", "backend": "ollama", "base_url": "http://localhost:11434", "context": "cell"},
+  {"name": "ollama-fim-no-markdown", "backend": "ollama", "base_url": "http://localhost:11434", "includeMarkdown": false},
+  {"name": "ollama-chat", "backend": "chat", "base_url": "http://localhost:11434"},
+  {"name": "llamacpp-infill", "backend": "infill", "base_url": "http://localhost:8080"},
+  {"name": "llamacpp-completions", "backend": "completions", "base_url": "http://localhost:8080"},
+  {"name": "llamacpp-chat", "backend": "chat", "base_url": "http://localhost:8080"},
+  {"name": "vllm-1.5b-fim", "backend": "completions", "base_url": "http://localhost:8002"},
+  {"name": "vllm-1.5b-chat", "backend": "chat", "base_url": "http://localhost:8002"}
+]

@@ -90,8 +90,13 @@ class StreamHandler(APIHandler):
         try:
             gen = backends.get_backend(req.backend)(req, client())
             async with contextlib.aclosing(gen):
+                first = True
                 async for chunk in gen:
-                    await self._send({"text": chunk})
+                    # Send the model with the first chunk: the client often stops
+                    # early and never sees the "done" event.
+                    await self._send({"text": chunk, "model": req.model} if first
+                                     else {"text": chunk})
+                    first = False
             await self._send({"done": True, "model": req.model,
                               "ms": round((time.perf_counter() - t0) * 1000, 1)})
         except (BackendError, httpx.HTTPError) as e:

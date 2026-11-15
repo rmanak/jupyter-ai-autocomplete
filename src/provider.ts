@@ -104,7 +104,7 @@ export class LLMInlineProvider implements IInlineCompletionProvider {
       backend: {
         title: 'Backend',
         description:
-          'infill = llama.cpp native /infill (best for llama.cpp). completions = OpenAI /v1/completions with a FIM prompt (vLLM, LM Studio, llama.cpp). ollama = Ollama /api/generate raw FIM (use base URL http://localhost:11434). chat = /v1/chat/completions fill-the-hole prompt, for chat-only models (slower).',
+          'infill = llama.cpp native /infill (best for llama.cpp). completions = OpenAI /v1/completions with a FIM prompt: vLLM (e.g. http://localhost:8001), LM Studio, llama.cpp. ollama = Ollama /api/generate raw FIM (use base URL http://localhost:11434). chat = /v1/chat/completions fill-the-hole prompt, for chat-only models (slower).',
         type: 'string',
         enum: ['infill', 'completions', 'ollama', 'chat']
       },

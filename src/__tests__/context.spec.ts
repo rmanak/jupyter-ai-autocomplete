@@ -122,3 +122,20 @@ describe('CompletionCache', () => {
     expect(c.get('m = np.', 'other')).toBeUndefined();
   });
 });
+
+describe('cell markers', () => {
+  const base = { prefix: 'df = load()\n', suffix: '', multiline: true };
+  it('drops a leading code-cell marker and keeps the code', () => {
+    expect(
+      postprocessCompletion({
+        ...base,
+        completion: '\n# %%\nsummary = df.describe()\n\n# %%\nprint(1)'
+      })
+    ).toBe('summary = df.describe()');
+  });
+  it('a leading markdown marker yields nothing', () => {
+    expect(
+      postprocessCompletion({ ...base, completion: '# %% [markdown]\n# Title' })
+    ).toBeUndefined();
+  });
+});

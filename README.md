@@ -20,9 +20,16 @@ It works like Continue's tab-autocomplete in VS Code, but runs against **your ow
    - **Tab** / Alt+End accepts, **Alt+[ / Alt+]** cycles, **Alt+\\** requests a completion explicitly.
    - Settings → Settings Editor → **Inline Completer** → *LLM autocomplete* has the base URL,
      model, max tokens, multi-line mode, context size, debounce delay (250 ms) and timeout.
-   - **Backend**: `infill` (llama.cpp `/infill`, the default), `completions` (`/v1/completions` with a FIM
-     template picked from the model name: Qwen-coder, StarCoder, DeepSeek, Codestral, CodeLlama, CodeGemma, Granite),
-     or `chat` (`/v1/chat/completions`, for chat-only models; slower).
+   - **Backend**:
+     - `infill`: llama.cpp `/infill`, the default.
+     - `completions`: `/v1/completions` with a FIM template picked from the model name (Qwen-coder,
+       StarCoder, DeepSeek, Codestral, CodeLlama, CodeGemma, Granite). Use it for **vLLM** (e.g.
+       `http://localhost:8001`; vLLM's prefix caching keeps warm latency low), LM Studio and llama.cpp.
+     - `ollama`: Ollama's `/api/generate` in raw FIM mode, with base URL `http://localhost:11434`.
+       Ollama's `/v1/completions` puts prompts through the chat template, so FIM doesn't work there.
+     - `chat`: `/v1/chat/completions`, for chat-only models; slower.
+   - Suggestions stream in as they're generated. After **Enter** a suggestion is requested explicitly, because
+     JupyterLab never auto-triggers when only whitespace precedes the cursor (setting: *Suggest on new lines*).
    - The status-bar dot shows ready / thinking / error / off. Click it, or use the command palette's
      *Disable/Enable LLM Autocomplete*, to toggle. Hover it to see the backend, model, latency or last error.
    - Check the LLM connection: `GET /jupyter-autocomp/health`.
@@ -36,8 +43,22 @@ jupyter server extension enable jupyter_autocomp
 jlpm build          # or: jlpm watch  (then reload the browser)
 jlpm jest           # unit tests (context building, filters, cache)
 pytest -q jupyter_autocomp               # server handler tests
-cd ui-tests && npx playwright test       # e2e on :8898; needs the LLM at :8080
+cd ui-tests && npx playwright test       # e2e on 127.0.0.1:8898; needs the LLM at :8080
+AUTOCOMP_BACKEND=ollama AUTOCOMP_BASE_URL=http://localhost:11434 npx playwright test   # e2e against Ollama
+AUTOCOMP_BACKEND=completions AUTOCOMP_BASE_URL=http://localhost:8002 npx playwright test  # e2e against vLLM
 ```
+
+## Offline eval
+
+Line-completion accuracy and latency on real notebooks. It uses the extension's own prompt building
+(`src/context.ts`) and post-processing (`src/filters.ts`) through `eval/cli.ts`, and the server's `backends.py`.
+```bash
+python eval/build_tasks.py ~/notebooks -o eval/tasks.jsonl   # hide the rest of random lines
+python eval/run_eval.py                                     # every reachable config in eval/configs.json
+python eval/run_eval.py --only ollama-fim --limit 50 --context-mode edit
+```
+Each run writes `eval/results/<stamp>/summary.md` plus per-task JSONL. Tasks and results contain your
+notebook code, so they're gitignored.
 
 ## Uninstall
 

@@ -113,6 +113,20 @@ export function stopAtRepeatingLines(completion: string): string {
   return out.join('\n');
 }
 
+const LEADING_CODE_CELL_MARKER = /^\s*# %%(?![^\n]*\[markdown\])[^\n]*\n/;
+
+/**
+ * Handle `# %%` cell markers (our notebook serialization). Small models often
+ * open with a fresh code-cell marker even though the cursor is already inside
+ * a cell, so a *leading* code marker is dropped. Any later marker ends the
+ * completion, because the cell is over. A leading markdown marker leaves nothing.
+ */
+export function cutAtCellMarker(completion: string): string {
+  const c = completion.replace(LEADING_CODE_CELL_MARKER, '');
+  const i = c.search(/(^|\n)# %%/);
+  return i >= 0 ? c.slice(0, i) : c;
+}
+
 export function postprocessCompletion(
   input: IPostprocessInput
 ): string | undefined {
@@ -122,6 +136,7 @@ export function postprocessCompletion(
   // Reasoning models: drop <think> blocks.
   c = c.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<\/?think>/g, '');
   c = removeBackticks(c);
+  c = cutAtCellMarker(c);
 
   if (!input.multiline) {
     const nl = c.indexOf('\n');

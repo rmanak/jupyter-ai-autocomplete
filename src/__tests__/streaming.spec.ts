@@ -48,3 +48,15 @@ describe('shouldStopEarly', () => {
     ).toBe(true);
   });
 });
+
+describe('shouldStopEarly with cell markers', () => {
+  it('ignores a leading marker but stops at the next one', () => {
+    expect(shouldStopEarly('\n# %%\nsummary = df.describe()\n', '', true)).toBe(
+      false
+    );
+    expect(shouldStopEarly('\n# %%\nsummary = 1\n\n# %%\npr', '', true)).toBe(
+      true
+    );
+    expect(shouldStopEarly('\n# %%\nsummary = 1', '', false)).toBe(false);
+  });
+});

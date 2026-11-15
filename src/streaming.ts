@@ -2,6 +2,7 @@ import { URLExt } from '@jupyterlab/coreutils';
 import { ServerConnection } from '@jupyterlab/services';
 
 import {
+  cutAtCellMarker,
   postprocessCompletion,
   stopAtRepeatingLines,
   stopAtSuffix
@@ -45,6 +46,8 @@ export async function* readSSE(
   }
 }
 
+const LEADING_MARKER = /^\s*# %%(?![^\n]*\[markdown\])[^\n]*\n/;
+
 /**
  * Whether the raw stream so far has gone where we'd cut it anyway, so we can
  * stop generating early. This is Continue's "fullStop" idea. The checks:
@@ -56,8 +59,11 @@ export function shouldStopEarly(
   suffix: string,
   multiline: boolean
 ): boolean {
+  if (cutAtCellMarker(raw).length < raw.replace(LEADING_MARKER, '').length) {
+    return true; // reached the next cell
+  }
   if (!multiline) {
-    return raw.replace(/^\n/, '').includes('\n');
+    return raw.replace(LEADING_MARKER, '').replace(/^\n/, '').includes('\n');
   }
   const cut = stopAtRepeatingLines(stopAtSuffix(raw, suffix));
   return cut.replace(/\s+$/, '').length < raw.replace(/\s+$/, '').length;
@@ -162,6 +168,9 @@ export class StreamSession {
         throw new Error(`HTTP ${response.status}: ${t.slice(0, 300)}`);
       }
       for await (const ev of readSSE(response)) {
+        if (ev.model) {
+          this.model = ev.model;
+        }
         if (ev.text) {
           this.raw += ev.text;
           if (shouldStopEarly(this.raw, this.suffix, this.multiline)) {
@@ -177,7 +186,6 @@ export class StreamSession {
           this.error = ev.error;
           break;
         } else if (ev.done) {
-          this.model = ev.model ?? '';
           break;
         }
       }

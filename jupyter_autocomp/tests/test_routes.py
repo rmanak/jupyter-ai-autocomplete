@@ -103,6 +103,7 @@ async def test_stream(jp_fetch, monkeypatch):
     assert r.headers["Content-Type"].startswith("text/event-stream")
     ev = _events(r.body)
     assert [e["text"] for e in ev if "text" in e] == ["np.", "mean", "(x)"]
+    assert ev[0]["model"] == "fake" and "model" not in ev[1]
     assert ev[-1]["done"] is True and ev[-1]["model"] == "fake"
 
 

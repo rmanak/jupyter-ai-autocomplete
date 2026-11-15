@@ -2,8 +2,9 @@ import { expect, galata, test } from '@jupyterlab/galata';
 
 /**
  * End-to-end tests against a live FIM-capable LLM.
- * Defaults to llama.cpp on :8080; for Ollama run with
+ * Defaults to llama.cpp on :8080. Other servers:
  *   AUTOCOMP_BACKEND=ollama AUTOCOMP_BASE_URL=http://localhost:11434 npx playwright test
+ *   AUTOCOMP_BACKEND=completions AUTOCOMP_BASE_URL=http://localhost:8002 npx playwright test  # vLLM
  */
 const BACKEND = process.env.AUTOCOMP_BACKEND ?? 'infill';
 const BASE: Record<string, any> = {
@@ -105,8 +106,8 @@ test.describe('unreachable server', () => {
 
 test.describe('completions backend', () => {
   test.skip(
-    BACKEND !== 'infill',
-    'needs llama.cpp (Ollama /v1/completions applies a chat template)'
+    BACKEND === 'ollama',
+    'Ollama /v1/completions applies a chat template; use the ollama backend'
   );
   test.use(withProvider({ backend: 'completions' }));
   test('/v1/completions + FIM template gives ghost text', async ({ page }) => {
@@ -119,7 +120,7 @@ test.describe('completions backend', () => {
       .locator('.jp-AutocompStatus')
       .getAttribute('title');
     expect(title).toContain('backend: completions');
-    expect(title).toContain('model: qwen3-coder');
+    expect(title).toMatch(/model: \S+/);
   });
 });
 
